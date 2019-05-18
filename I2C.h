@@ -38,8 +38,14 @@ public:
     I2C();
     void init(uint8_t address);
     uint8_t start();
+    uint8_t startRead(bool ack = false);
     uint8_t write(uint8_t data);
+    uint8_t read();
     void stop(void);
+//advanced functions
+    uint8_t readAddress(uint8_t addr);
+    void writeAddress(uint8_t addr, uint8_t value);
+    uint8_t readAddress(uint8_t addr, uint8_t length, uint8_t *data);
 private:
     uint8_t address;
     uint8_t twi_status_register;

@@ -26,13 +26,18 @@ For more information, please refer to <http://unlicense.org/>
 */
 
 #include "I2C.h"
+bool Initialized = false;
 
 I2C::I2C() {}
 
 void I2C::init(uint8_t address) {
     this->address = address;
-    TWSR = 0;
-    TWBR = ((F_CPU/SCL_CLOCK)-16)/2;
+    if(Initialized ==false)
+    {
+      TWSR = 0;
+      TWBR = ((F_CPU/SCL_CLOCK)-16)/2;
+      Initialized = true;
+    }
 }
 
 uint8_t I2C::start() {
@@ -44,8 +49,32 @@ uint8_t I2C::start() {
         return 1;
     }
 
-    TWDR = address;
+    TWDR = address&0xFE;
     TWCR = (1<<TWINT) | (1<<TWEN);
+
+    while(!(TWCR & (1<<TWINT)));
+
+    this->twi_status_register = TW_STATUS & 0xF8;
+    if ((this->twi_status_register != TW_MT_SLA_ACK) && (this->twi_status_register != TW_MR_SLA_ACK)) {
+        return 1;
+    }
+
+    return 0;
+}
+uint8_t I2C::startRead(bool Ack) {
+    TWCR = (1<<TWINT) | (1<<TWSTA) | (1<<TWEN);
+    while(!(TWCR & (1<<TWINT)));
+
+    twi_status_register = TW_STATUS & 0xF8;
+    if ((this->twi_status_register != TW_START) && (this->twi_status_register != TW_REP_START)) {
+        return 1;
+    }
+
+    TWDR = address|0x01;
+    if(Ack == false)
+      TWCR = (1<<TWINT) | (1<<TWEN);
+    else
+      TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWEA);
 
     while(!(TWCR & (1<<TWINT)));
 
@@ -70,8 +99,46 @@ uint8_t I2C::write(uint8_t data) {
         return 0;
     }
 }
+uint8_t I2C::read()
+{
+    //TWDR = 0x00;
+    TWCR = (1<<TWINT)|(1<<TWEN);
+    while(!(TWCR & (1 << TWINT)));
+
+    return TWDR;
+}
 
 void I2C::stop(void) {
     TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWSTO);
     while(TWCR & (1<<TWSTO));
+}
+void I2C::writeAddress(uint8_t addr, uint8_t value)
+{
+  this->start();
+  this->write(addr);
+  this->write(value);
+  this->stop();
+}
+uint8_t I2C::readAddress(uint8_t addr)
+{
+  this->start();
+  this->write(addr);
+  //BMA_I2C.stop();
+  this->startRead(false);
+  uint8_t data = this->read();
+  this->stop();
+
+  return data;
+}
+uint8_t I2C::readAddress(uint8_t addr, uint8_t length, uint8_t *data)
+{
+  this->start();
+  this->write(addr);
+  //BMA_I2C.stop();
+  this->startRead(true);
+  for(uint8_t i=addr;i<(addr+length);++i)
+     data[i-addr] = this->read();
+  this->stop();
+
+  return data[length-1];
 }
