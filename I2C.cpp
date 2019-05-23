@@ -72,9 +72,13 @@ uint8_t I2C::startRead(bool Ack) {
 
     TWDR = address|0x01;
     if(Ack == false)
+    {
       TWCR = (1<<TWINT) | (1<<TWEN);
+    }
     else
+    {
       TWCR = (1<<TWINT) | (1<<TWEN) | (1<<TWEA);
+    }
 
     while(!(TWCR & (1<<TWINT)));
 
@@ -99,10 +103,13 @@ uint8_t I2C::write(uint8_t data) {
         return 0;
     }
 }
-uint8_t I2C::read()
+uint8_t I2C::read(bool Ack)
 {
     //TWDR = 0x00;
-    TWCR = (1<<TWINT)|(1<<TWEN);
+    if(Ack)
+      TWCR = (1<<TWINT)|(1<<TWEN)|(1<<TWEA);
+    else
+      TWCR = (1<<TWINT)|(1<<TWEN);
     while(!(TWCR & (1 << TWINT)));
 
     return TWDR;
@@ -119,13 +126,23 @@ void I2C::writeAddress(uint8_t addr, uint8_t value)
   this->write(value);
   this->stop();
 }
+void I2C::writeAddress(uint8_t addr, uint8_t *value, uint8_t length)
+{
+  this->start();
+  this->write(addr);
+  for(uint8_t i=0; i<length; ++i)
+  {
+      this->write(value[i]);
+  }
+  this->stop();
+}
 uint8_t I2C::readAddress(uint8_t addr)
 {
   this->start();
   this->write(addr);
   //BMA_I2C.stop();
   this->startRead(false);
-  uint8_t data = this->read();
+  uint8_t data = this->read(false);
   this->stop();
 
   return data;
@@ -134,10 +151,11 @@ uint8_t I2C::readAddress(uint8_t addr, uint8_t length, uint8_t *data)
 {
   this->start();
   this->write(addr);
-  //BMA_I2C.stop();
+  this->stop();
   this->startRead(true);
-  for(uint8_t i=addr;i<(addr+length);++i)
-     data[i-addr] = this->read();
+  for(uint8_t i=0;i<length-1;++i)
+     data[i] = this->read(true);
+  data[length-1] = this->read(false);
   this->stop();
 
   return data[length-1];
